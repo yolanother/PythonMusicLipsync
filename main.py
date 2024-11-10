@@ -71,87 +71,92 @@ async def process_audio(
         output_format: Optional[str] = Form("pcm"),  # Specify output format: pcm, wav, mp3
         include_base64: Optional[bool] = Form(False)  # Include base64 encoded audio in JSON response
 ):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        # Read the uploaded file and convert it to WAV if necessary
-        audio = AudioSegment.from_file(BytesIO(await file.read()), format=file.filename.split('.')[-1])
-        audio.export(tmp.name, format="wav")
-        audio_path = tmp.name
+    log("analyze", f"Received file {file.filename}")
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            # Read the uploaded file and convert it to WAV if necessary
+            audio = AudioSegment.from_file(BytesIO(await file.read()))
+            audio.export(tmp.name, format="wav")
+            audio_path = tmp.name
 
-    log("analyze", "Extracting vocals...")
-    vocals = get_vocals(audio_path)
+        log("analyze", "Extracting vocals...")
+        vocals = get_vocals(audio_path)
 
-    log("analyze", "Transcribing visemes...")
-    visemes = await transcribe_visemes(vocals[0])
+        log("analyze", "Transcribing visemes...")
+        visemes = await transcribe_visemes(vocals[0])
 
-    log("analyze", "Transcribing text...")
-    transcript_times = await transcribe_file(vocals[0], transcript)
+        log("analyze", "Transcribing text...")
+        transcript_times = await transcribe_file(vocals[0], transcript)
 
-    log("analyze", "Analyzing beats...")
-    beats = await analyze_beat(audio_path)
+        log("analyze", "Analyzing beats...")
+        beats = await analyze_beat(audio_path)
 
-    # delete all files in the vocals
-    for vocal in vocals:
-        os.remove(vocal)
+        # delete all files in the vocals
+        for vocal in vocals:
+            os.remove(vocal)
 
-    data = []
+        data = []
 
-    log("analyze", "Combining data...")
-    # append beats if we have them
-    for beat in beats:
-        data.append(beat)
+        log("analyze", "Combining data...")
+        # append beats if we have them
+        for beat in beats:
+            data.append(beat)
 
-    for i in range(len(transcript_times)):
-        # if the transcript time has a caption, add it to the data
-        if "caption" in transcript_times[i]:
+        for i in range(len(transcript_times)):
+            # if the transcript time has a caption, add it to the data
+            if "caption" in transcript_times[i]:
+                data.append({
+                    "data": transcript_times[i]["caption"],
+                    "offset": convert_to_ms(transcript_times[i]["start"]),
+                    "type": "CAPTION"
+                })
+            else:
+                # trim space off the word
+                word = transcript_times[i]["word"].strip()
+                data.append({
+                    "data": word,
+                    "offset": convert_to_ms(transcript_times[i]["start"]),
+                    "type": "WORD"
+                })
+
+        for i in range(len(visemes["transcription"])):
             data.append({
-                "data": transcript_times[i]["caption"],
-                "offset": convert_to_ms(transcript_times[i]["start"]),
-                "type": "CAPTION"
+                "data": visemes["transcription"][i]["phoneme"],
+                "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
+                "type": "PHONE"
             })
+            data.append({
+                "data": visemes["transcription"][i]["viseme"],
+                "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
+                "type": "VISEME"
+            })
+
+        log("analyze", "Sorting data...")
+        # sort the data by start time
+        data.sort(key=lambda x: x["offset"])
+
+        # print the data with pretty json
+        log("analyze", json.dumps(data, indent=2))
+
+        # Check request type
+        if request.headers.get("accept") == "application/json":
+            # Return JSON response with data
+            response_data = {"data": data}
+            if include_base64:
+                data = encode_json_and_file(data, audio_path, output_format=output_format)
+                base64data = base64.b64encode(data).decode("utf-8")
+                response_data["data_encoded_audio"] = base64data
+            os.remove(audio_path)
+            return JSONResponse(content=response_data)
         else:
-            # trim space off the word
-            word = transcript_times[i]["word"].strip()
-            data.append({
-                "data": word,
-                "offset": convert_to_ms(transcript_times[i]["start"]),
-                "type": "WORD"
-            })
-
-    for i in range(len(visemes["transcription"])):
-        data.append({
-            "data": visemes["transcription"][i]["phoneme"],
-            "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
-            "type": "PHONE"
-        })
-        data.append({
-            "data": visemes["transcription"][i]["viseme"],
-            "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
-            "type": "VISEME"
-        })
-
-    log("analyze", "Sorting data...")
-    # sort the data by start time
-    data.sort(key=lambda x: x["offset"])
-
-    # print the data with pretty json
-    log("analyze", json.dumps(data, indent=2))
-
-    # Check request type
-    if request.headers.get("accept") == "application/json":
-        # Return JSON response with data
-        response_data = {"data": data}
-        if include_base64:
-            data = encode_json_and_file(data, audio_path, output_format=output_format)
-            base64data = base64.b64encode(data).decode("utf-8")
-            response_data["data_encoded_audio"] = base64data
-        os.remove(audio_path)
-        return JSONResponse(content=response_data)
-    else:
-        # Return as a streaming response for binary data
-        encoded = encode_json_and_file(data, audio_path, output_format=output_format)
-        os.remove(audio_path)
-        media_type = "audio/wav" if output_format == "wav" else "audio/mpeg" if output_format == "mp3" else "application/octet-stream"
-        return StreamingResponse(BytesIO(encoded), media_type=media_type)
+            # Return as a streaming response for binary data
+            encoded = encode_json_and_file(data, audio_path, output_format=output_format)
+            os.remove(audio_path)
+            media_type = "audio/wav" if output_format == "wav" else "audio/mpeg" if output_format == "mp3" else "application/octet-stream"
+            return StreamingResponse(BytesIO(encoded), media_type=media_type)
+    except Exception as e:
+        log("analyze", f"Error processing audio: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     #if args --init is passed, don't start the server
