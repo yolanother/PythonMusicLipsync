@@ -30,6 +30,7 @@ if torch.cuda.is_available():
     device = torch.device(f'cuda:0')
 
 p = argparse.ArgumentParser()
+p.add_argument('--init', '-i', action='store_true')
 p.add_argument('--gpu', '-g', type=int, default=-1)
 p.add_argument('--pretrained_model', '-P', type=str, default=DEFAULT_MODEL_PATH)
 p.add_argument('--sr', '-r', type=int, default=44100)

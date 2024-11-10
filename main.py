@@ -1,4 +1,5 @@
 import base64
+import sys
 
 from app import app, encode_json_and_file, log
 import tempfile
@@ -153,4 +154,6 @@ async def process_audio(
         return StreamingResponse(BytesIO(encoded), media_type=media_type)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    #if args --init is passed, don't start the server
+    if "--init" not in sys.argv:
+        uvicorn.run(app, host="0.0.0.0", port=8000)

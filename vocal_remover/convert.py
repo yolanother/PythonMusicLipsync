@@ -20,6 +20,7 @@ DEFAULT_MODEL_PATH = os.path.join(MODEL_DIR, 'baseline.pth')
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument('--init', '-i', action='store_true')
     p.add_argument('--gpu', '-g', type=int, default=-1)
     p.add_argument('--pretrained_model', '-P', type=str, default=DEFAULT_MODEL_PATH)
     p.add_argument('--dataset', '-d', required=True)
