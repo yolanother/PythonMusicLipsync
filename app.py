@@ -1,9 +1,16 @@
+from datetime import datetime
+
 from fastapi import FastAPI, File, UploadFile, Form
 import struct
 import json
 
 # Create FastAPI instance as a global variable for sharing across multiple files
 app = FastAPI()
+
+
+def log(endpoint, message):
+    # print message [endpoint name - timestamp] message
+    print(f"[{endpoint} - {datetime.now()}] {message}")
 
 
 def encode_json_and_file(json_data, file_path):

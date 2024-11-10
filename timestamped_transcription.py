@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI, File, UploadFile, Form
 import uvicorn
 import os
@@ -16,8 +18,11 @@ model = load_model("base")  # You can replace "base" with any other model size y
 async def transcribe_file(temp_path: str, transcript: Optional[str] = None) -> List[Dict[str, Union[str, float]]]:
     # Load the audio file and perform transcription or forced alignment
     if transcript:
+        # replace any spaces in text between [.*] with a _ use regex to capture anything between the square brackets and replace any spaces that were captured
+        processed_transcript = re.sub(r'\[(.*?)\]', lambda x: x.group(0).replace(" ", "_"), transcript)
+
         # Use forced alignment mode by specifying the transcript
-        result = model.transcribe(temp_path, word_timestamps=True, initial_prompt=transcript)
+        result = model.transcribe(temp_path, word_timestamps=True, initial_prompt=processed_transcript)
     else:
         # Perform full transcription
         result = model.transcribe(temp_path, word_timestamps=True)
@@ -31,6 +36,14 @@ async def transcribe_file(temp_path: str, transcript: Optional[str] = None) -> L
                 "start": str(word["start"]),  # Convert to string to avoid type errors
                 "end": str(word["end"])  # Convert to string to avoid type errors
             })
+
+    if transcript:
+        # Add the original transcript to the response
+        words_with_timestamps.append({
+            "caption": transcript,
+            "start": str(result["segments"][0]["words"][0]["start"]),  # Start time of the first word in the transcript
+            "end": str(result["segments"][-1]["words"][-1]["end"])  # End time of the last word in the transcript
+        })
 
     return words_with_timestamps
 

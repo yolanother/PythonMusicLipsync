@@ -1,4 +1,4 @@
-from app import app, encode_json_and_file
+from app import app, encode_json_and_file, log
 import tempfile
 from fastapi import UploadFile, File, Form
 from typing import List, Dict, Union, Optional
@@ -10,6 +10,7 @@ import json
 from io import BytesIO
 from vocal_remover.api import *
 import uvicorn
+from beat_detection import *
 
 def encode_json_and_file(json_data, wav_path):
     FLAG_SIZE = 1
@@ -57,7 +58,8 @@ def convert_to_ms(timestamp):
         timestamp = float(timestamp)
     return int(timestamp * 1000)
 
-@app.post("/process/")
+
+@app.post("/analyze/")
 async def process_audio(
         file: UploadFile = File(...),
         transcript: Optional[str] = Form(None)  # Optional transcript input for forced alignment
@@ -66,31 +68,45 @@ async def process_audio(
         tmp.write(await file.read())
         audio_path = tmp.name
 
+    log("analyze", "Extracting vocals...")
     vocals = get_vocals(audio_path)
 
+    log("analyze", "Transcribing visemes...")
     visemes = await transcribe_visemes(vocals[0])
+
+    log("analyze", "Transcribing text...")
     transcript_times = await transcribe_file(vocals[0], transcript)
+
+    log("analyze", "Analyzing beats...")
+    beats = await analyze_beat(audio_path)
 
     # delete all files in the vocals
     for vocal in vocals:
         os.remove(vocal)
 
-    print("Visemes:")
-    print(visemes)
-
-    print("Transcript:")
-    print(transcript_times)
-
     data = []
 
+    log("analyze", "Combining data...")
+    # append beats if we have them
+    for beat in beats:
+        data.append(beat)
+
     for i in range(len(transcript_times)):
-        # trim space off the word
-        word = transcript_times[i]["word"].strip()
-        data.append({
-            "data": word,
-            "offset": convert_to_ms(transcript_times[i]["start"]),
-            "type": "WORD"
-        })
+        # if the transcript time has a caption, add it to the data
+        if "caption" in transcript_times[i]:
+            data.append({
+                "data": transcript_times[i]["caption"],
+                "offset": convert_to_ms(transcript_times[i]["start"]),
+                "type": "CAPTION"
+            })
+        else:
+            # trim space off the word
+            word = transcript_times[i]["word"].strip()
+            data.append({
+                "data": word,
+                "offset": convert_to_ms(transcript_times[i]["start"]),
+                "type": "WORD"
+            })
 
     for i in range(len(visemes["transcription"])):
         data.append({
@@ -104,8 +120,12 @@ async def process_audio(
             "type": "VISEME"
         })
 
+    log("analyze", "Sorting data...")
     # sort the data by start time
     data.sort(key=lambda x: x["offset"])
+
+    # print the data with pretty json
+    log("analyze", json.dumps(data, indent=2))
 
     encoded = encode_json_and_file(data, audio_path)
 
