@@ -1,3 +1,5 @@
+import base64
+
 from app import app, encode_json_and_file, log
 import tempfile
 from fastapi import UploadFile, File, Form, Request
@@ -65,7 +67,8 @@ async def process_audio(
         request: Request,
         file: UploadFile = File(...),
         transcript: Optional[str] = Form(None),  # Optional transcript input for forced alignment
-        output_format: Optional[str] = Form("pcm")  # Specify output format: pcm, wav, mp3
+        output_format: Optional[str] = Form("pcm"),  # Specify output format: pcm, wav, mp3
+        include_base64: Optional[bool] = Form(False)  # Include base64 encoded audio in JSON response
 ):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         # Read the uploaded file and convert it to WAV if necessary
@@ -136,6 +139,10 @@ async def process_audio(
     if request.headers.get("accept") == "application/json":
         # Return JSON response with data
         response_data = {"data": data}
+        if include_base64:
+            data = encode_json_and_file(data, audio_path, output_format=output_format)
+            base64data = base64.b64encode(data).decode("utf-8")
+            response_data["data_encoded_audio"] = base64data
         os.remove(audio_path)
         return JSONResponse(content=response_data)
     else:
