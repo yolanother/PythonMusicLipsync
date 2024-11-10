@@ -1,6 +1,6 @@
 from app import app, encode_json_and_file, log
 import tempfile
-from fastapi import UploadFile, File, Form
+from fastapi import UploadFile, File, Form, Request
 from typing import List, Dict, Union, Optional
 from timestamped_transcription import transcribe_file
 from transcribe_visemes import transcribe_visemes
@@ -8,11 +8,13 @@ import wave
 import struct
 import json
 from io import BytesIO
+from pydub import AudioSegment
 from vocal_remover.api import *
 import uvicorn
 from beat_detection import *
+from fastapi.responses import StreamingResponse, JSONResponse
 
-def encode_json_and_file(json_data, wav_path):
+def encode_json_and_file(json_data, audio_path, output_format="pcm"):
     FLAG_SIZE = 1
     LONG_SIZE = 8
 
@@ -20,14 +22,14 @@ def encode_json_and_file(json_data, wav_path):
     json_bytes = json.dumps(json_data).encode('utf-8') if json_data else b''
     json_length = len(json_bytes)
 
-    # Read and convert the WAV file content to PCM in-memory
-    with wave.open(wav_path, 'rb') as wav_file:
-        params = wav_file.getparams()
-        channels = params.nchannels
-        sample_width = params.sampwidth
-        frame_rate = params.framerate
-        num_frames = params.nframes
-        file_bytes = wav_file.readframes(num_frames)
+    # Read and convert the audio file content based on the requested format
+    audio = AudioSegment.from_file(audio_path)
+    if output_format == "wav":
+        file_bytes = audio.export(format="wav").read()
+    elif output_format == "mp3":
+        file_bytes = audio.export(format="mp3").read()
+    else:  # default to pcm
+        file_bytes = audio.raw_data
 
     binary_length = len(file_bytes)
 
@@ -58,14 +60,17 @@ def convert_to_ms(timestamp):
         timestamp = float(timestamp)
     return int(timestamp * 1000)
 
-
 @app.post("/analyze/")
 async def process_audio(
+        request: Request,
         file: UploadFile = File(...),
-        transcript: Optional[str] = Form(None)  # Optional transcript input for forced alignment
+        transcript: Optional[str] = Form(None),  # Optional transcript input for forced alignment
+        output_format: Optional[str] = Form("pcm")  # Specify output format: pcm, wav, mp3
 ):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(await file.read())
+        # Read the uploaded file and convert it to WAV if necessary
+        audio = AudioSegment.from_file(BytesIO(await file.read()), format=file.filename.split('.')[-1])
+        audio.export(tmp.name, format="wav")
         audio_path = tmp.name
 
     log("analyze", "Extracting vocals...")
@@ -127,13 +132,18 @@ async def process_audio(
     # print the data with pretty json
     log("analyze", json.dumps(data, indent=2))
 
-    encoded = encode_json_and_file(data, audio_path)
-
-    # remove temporary file
-    os.remove(audio_path)
-
-    # Return as a streaming response for binary data
-    return StreamingResponse(BytesIO(encoded), media_type="application/octet-stream")
+    # Check request type
+    if request.headers.get("accept") == "application/json":
+        # Return JSON response with data
+        response_data = {"data": data}
+        os.remove(audio_path)
+        return JSONResponse(content=response_data)
+    else:
+        # Return as a streaming response for binary data
+        encoded = encode_json_and_file(data, audio_path, output_format=output_format)
+        os.remove(audio_path)
+        media_type = "audio/wav" if output_format == "wav" else "audio/mpeg" if output_format == "mp3" else "application/octet-stream"
+        return StreamingResponse(BytesIO(encoded), media_type=media_type)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

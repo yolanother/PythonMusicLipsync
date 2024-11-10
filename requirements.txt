@@ -1,19 +1,36 @@
 # requirements.txt
+
+# Core dependencies
 torch
 openai-whisper
 fastapi
 uvicorn
 python-multipart
+
+# ASR and NLP tools
 allosaurus
 whisper
 speechbrain
+
+# Audio processing
+pyaudio
+pydub
 torchaudio
 librosa~=0.10.0
+
+# Visualization
 matplotlib~=3.8.0
-opencv_python~=4.8.0
+
+# Computer vision
+opencv-python~=4.8.0
+
+# Audio resampling
 resampy~=0.4.0
-tqdm~=4.66.0
+
+# Utility
 numpy~=1.26.4
+tqdm~=4.66.0
+
+# Beat tracking and music analysis
 BeatNet
-madmom=git+https://github.com/CPJKU/madmom.git
-pyaudio
+madmom @ git+https://github.com/CPJKU/madmom.git

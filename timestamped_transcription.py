@@ -38,12 +38,21 @@ async def transcribe_file(temp_path: str, transcript: Optional[str] = None) -> L
             })
 
     if transcript:
-        # Add the original transcript to the response
-        words_with_timestamps.append({
-            "caption": transcript,
-            "start": str(result["segments"][0]["words"][0]["start"]),  # Start time of the first word in the transcript
-            "end": str(result["segments"][-1]["words"][-1]["end"])  # End time of the last word in the transcript
-        })
+        try:
+            # Add the original transcript to the response
+            words_with_timestamps.append({
+                "caption": transcript,
+                "start": str(result["segments"][0]["words"][0]["start"]),  # Start time of the first word in the transcript
+                "end": str(result["segments"][-1]["words"][-1]["end"])  # End time of the last word in the transcript
+            })
+        except Exception as e:
+            # Add the original transcript to the response
+            words_with_timestamps.append({
+                "caption": transcript,
+                "start": "0",  # Start time of the first word in the transcript
+                "end": "0"  # End time of the last word in the transcript
+            })
+
 
     return words_with_timestamps
 
