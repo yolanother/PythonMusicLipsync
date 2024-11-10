@@ -33,4 +33,4 @@ tqdm~=4.66.0
 
 # Beat tracking and music analysis
 BeatNet
-madmom @ git+https://github.com/CPJKU/madmom.git
+# madmom @ git+https://github.com/CPJKU/madmom.git
