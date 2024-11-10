@@ -1,0 +1,16 @@
+# requirements.txt
+torch
+openai-whisper
+fastapi
+uvicorn
+python-multipart
+allosaurus
+whisper
+speechbrain
+torchaudio
+librosa~=0.10.0
+matplotlib~=3.8.0
+opencv_python~=4.8.0
+resampy~=0.4.0
+tqdm~=4.66.0
+numpy~=1.26.4
