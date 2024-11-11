@@ -113,10 +113,24 @@ async def process_audio(
             else:
                 # trim space off the word
                 word = transcript_times[i]["word"].strip()
+                # if the word is in {emote:trigger-name} it is an action or emote trigger change the type to EMOTE
+                type = "WORD"
+                if word.startswith("{emote:") and word.endswith("}"):
+                    type = "EMOTE"
+                    # Replace the word with the values inside the curly braces
+                    word = word[7:-1]
+                elif word.startswith("{emotion:") and word.endswith("}"):
+                    type = "EMOTE"
+                    word = word[9:-1]
+                elif word.startswith("{action:") and word.endswith("}"):
+                    type = "ACTION"
+                    # Replace the word with the values inside the curly braces
+                    word = word[8:-1]
+
                 data.append({
                     "data": word,
                     "offset": convert_to_ms(transcript_times[i]["start"]),
-                    "type": "WORD"
+                    "type": type
                 })
 
         for i in range(len(visemes["transcription"])):

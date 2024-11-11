@@ -1,3 +1,4 @@
+import hashlib
 import traceback
 import argparse
 
@@ -49,10 +50,19 @@ model.to(device)
 # Function to extract vocals from an audio file
 def get_vocals(audio_file_path: str, n_fft: int = 2048, hop_length: int = 512, sr: int = 44100, batchsize: int = 4, cropsize: int = 512, tta: bool = False) -> List[str]:
     try:
+        basename = os.path.splitext(os.path.basename(audio_file_path))[0]
+        output_dir = './output_vocals/'
+        Path(output_dir).mkdir(exist_ok=True)
+
+        instruments_path = f'{output_dir}{basename}_Instruments.wav'
+        vocals_path = f'{output_dir}{basename}_Vocals.wav'
+
+        # if vocals exists return it
+        if os.path.exists(vocals_path):
+            return [vocals_path, instruments_path]
 
         # Loading wave source
         X, sr = librosa.load(audio_file_path, sr=sr, mono=False, dtype=np.float32, res_type='kaiser_fast')
-        basename = os.path.splitext(os.path.basename(audio_file_path))[0]
 
         if X.ndim == 1:
             # mono to stereo
@@ -73,16 +83,13 @@ def get_vocals(audio_file_path: str, n_fft: int = 2048, hop_length: int = 512, s
         else:
             y_spec, v_spec = sp.separate(X_spec)
 
-        output_dir = './output_vocals/'
-        Path(output_dir).mkdir(exist_ok=True)
 
         # Inverse STFT of instruments and vocals
         wave = spec_utils.spectrogram_to_wave(y_spec, hop_length=hop_length)
-        instruments_path = f'{output_dir}{basename}_Instruments.wav'
         sf.write(instruments_path, wave.T, sr)
 
         wave = spec_utils.spectrogram_to_wave(v_spec, hop_length=hop_length)
-        vocals_path = f'{output_dir}{basename}_Vocals.wav'
+
         sf.write(vocals_path, wave.T, sr)
 
         return [vocals_path, instruments_path]
@@ -95,11 +102,14 @@ def get_vocals(audio_file_path: str, n_fft: int = 2048, hop_length: int = 512, s
 @app.post("/extract-vocals/")
 async def extract_vocals(uploaded_file: UploadFile = File(...), download: bool = False):
     try:
-        with NamedTemporaryFile(delete=False) as tmp:
-            tmp.write(await uploaded_file.read())
-            tmp_path = tmp.name
+        # get a name for the file based on the md5 of the file
+        name = hashlib.md5(uploaded_file.filename.encode()).hexdigest()
+        path = f'./uploads/{name}'
+        # write the file to disk
+        with open(f'./uploads/{name}', 'wb') as f:
+            f.write(await uploaded_file.read())
 
-        vocals_files = get_vocals(tmp_path)
+        vocals_files = get_vocals(path)
         if not vocals_files:
             raise HTTPException(status_code=404, detail="No vocals extracted.")
 
