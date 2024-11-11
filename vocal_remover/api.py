@@ -56,6 +56,7 @@ def get_vocals(audio_file_path: str, n_fft: int = 2048, hop_length: int = 512, s
 
         instruments_path = f'{output_dir}{basename}_Instruments.wav'
         vocals_path = f'{output_dir}{basename}_Vocals.wav'
+        print("Getting vocals for file:", audio_file_path)
 
         # if vocals exists return it
         if os.path.exists(vocals_path):

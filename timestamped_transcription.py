@@ -21,6 +21,7 @@ async def transcribe_file(temp_path: str, transcript: Optional[str] = None) -> L
         # replace any spaces in text between [.*] with a _ use regex to capture anything between the square brackets and replace any spaces that were captured
         processed_transcript = re.sub(r'\[(.*?)\]', lambda x: x.group(0).replace(" ", "_"), transcript)
 
+        print("Processed Transcript: ", processed_transcript)
         # Use forced alignment mode by specifying the transcript
         result = model.transcribe(temp_path, word_timestamps=True, initial_prompt=processed_transcript)
     else:

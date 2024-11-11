@@ -79,11 +79,14 @@ async def process_audio(
 ):
     log("analyze", f"Received file {file.filename}")
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        # get a name for the file based on the md5 of the file
+        name = hashlib.md5(file.filename.encode()).hexdigest()
+        audio_path = f'./uploads/{name}'
+        # write the file to disk
+        with open(audio_path, 'wb') as f:
             # Read the uploaded file and convert it to WAV if necessary
             audio = AudioSegment.from_file(BytesIO(await file.read()))
-            audio.export(tmp.name, format="wav")
-            audio_path = tmp.name
+            audio.export(audio_path, format="wav")
 
         log("analyze", "Extracting vocals...")
         vocals = get_vocals(audio_path)
@@ -102,6 +105,7 @@ async def process_audio(
             os.remove(vocal)
 
         data = []
+        words = []
 
         log("analyze", "Combining data...")
         # append beats if we have them
@@ -133,11 +137,14 @@ async def process_audio(
                     # Replace the word with the values inside the curly braces
                     word = word[8:-1]
 
-                data.append({
+                entry = {
                     "data": word,
                     "time": convert_to_ms(transcript_times[i]["start"]),
                     "type": type
-                })
+                }
+                data.append(entry)
+                if type == "WORD":
+                    words.append(entry)
 
         for i in range(len(visemes["transcription"])):
             data.append({
@@ -150,6 +157,43 @@ async def process_audio(
                 "time": convert_to_ms(visemes["transcription"][i]["start_time"]),
                 "type": "VISEME"
             })
+
+        if len(words) > 2:
+            # iterate over the words, if there is more than 5 sec between them put a instrumental emote right after the last word
+            # of the break put a vocal emote right before the next word
+            for i in range(len(words) - 1):
+                if words[i + 1]["time"] - words[i]["time"] > 5000:
+                    data.append({
+                        "data": "instrumental",
+                        "time": words[i]["time"],
+                        "type": "EMOTE"
+                    })
+                    data.append({
+                        "data": "vocal",
+                        "time": max(0, words[i + 1]["time"] - 250),
+                        "type": "EMOTE"
+                    })
+            # if there is more than 5 sec before the first word put a instrumental emote at the beginning, otherwise put the vocal emote
+            if words[0]["time"] > 5000:
+                data.insert(0, {
+                    "data": "instrumental",
+                    "time": 0,
+                    "type": "EMOTE"
+                })
+            else:
+                data.insert(0, {
+                    "data": "vocal",
+                    "time": 0,
+                    "type": "EMOTE"
+                })
+
+            # add a instrumental emote at the last word
+            data.append({
+                "data": "instrumental",
+                "time": words[-1]["time"] + 250,
+                "type": "EMOTE"
+            })
+
 
         # Iterate over the data and calculate the sample offset based on the time and the sample rate of 24000 single channel
         for d in data:
