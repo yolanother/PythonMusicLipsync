@@ -28,7 +28,7 @@ async def analyze_beat(file_path: str):
     beat_json_array = []
     for key,value in output:
         beat_json_array.append({
-            "offset": int(float(key) * 1000),
+            "time": int(float(key) * 1000),
             "data": value,
             "type": "BEAT"
         })

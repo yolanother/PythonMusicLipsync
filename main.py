@@ -111,7 +111,7 @@ async def process_audio(
             if "caption" in transcript_times[i]:
                 data.append({
                     "data": transcript_times[i]["caption"],
-                    "offset": convert_to_ms(transcript_times[i]["start"]),
+                    "time": convert_to_ms(transcript_times[i]["start"]),
                     "type": "CAPTION"
                 })
             else:
@@ -133,21 +133,25 @@ async def process_audio(
 
                 data.append({
                     "data": word,
-                    "offset": convert_to_ms(transcript_times[i]["start"]),
+                    "time": convert_to_ms(transcript_times[i]["start"]),
                     "type": type
                 })
 
         for i in range(len(visemes["transcription"])):
             data.append({
                 "data": visemes["transcription"][i]["phoneme"],
-                "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
+                "time": convert_to_ms(visemes["transcription"][i]["start_time"]),
                 "type": "PHONE"
             })
             data.append({
                 "data": visemes["transcription"][i]["viseme"],
-                "offset": convert_to_ms(visemes["transcription"][i]["start_time"]),
+                "time": convert_to_ms(visemes["transcription"][i]["start_time"]),
                 "type": "VISEME"
             })
+
+        # Iterate over the data and calculate the sample offset based on the time and the sample rate of 24000 single channel
+        for d in data:
+            d["offset"] = int(d["time"] * 24000 / 1000)
 
         log("analyze", "Sorting data...")
         # sort the data by start time
