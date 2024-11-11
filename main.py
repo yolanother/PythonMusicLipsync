@@ -17,7 +17,7 @@ import uvicorn
 from beat_detection import *
 from fastapi.responses import StreamingResponse, JSONResponse
 
-def encode_json_and_file(json_data, audio_path, output_format="pcm"):
+def encode_json_and_file(json_data, audio_path, output_format="pcm", sample_rate=24000, channels=1):
     FLAG_SIZE = 1
     LONG_SIZE = 8
 
@@ -28,14 +28,14 @@ def encode_json_and_file(json_data, audio_path, output_format="pcm"):
     # Read and convert the audio file content based on the requested format
     audio = AudioSegment.from_file(audio_path)
     if output_format == "wav":
-        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
+        audio = audio.set_frame_rate(sample_rate).set_sample_width(2).set_channels(channels)
         file_bytes = audio.export(format="wav").read()
     elif output_format == "mp3":
-        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
+        audio = audio.set_frame_rate(sample_rate).set_sample_width(2).set_channels(channels)
         file_bytes = audio.export(format="mp3").read()
     else:  # default to pcm
         # reencode the audio to PCM with 16k sample rate, 16-bit sample width, and mono channel
-        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
+        audio = audio.set_frame_rate(sample_rate).set_sample_width(2).set_channels(channels)
         file_bytes = audio.raw_data
 
     binary_length = len(file_bytes)
@@ -73,7 +73,9 @@ async def process_audio(
         file: UploadFile = File(...),
         transcript: Optional[str] = Form(None),  # Optional transcript input for forced alignment
         output_format: Optional[str] = Form("pcm"),  # Specify output format: pcm, wav, mp3
-        include_base64: Optional[bool] = Form(False)  # Include base64 encoded audio in JSON response
+        include_base64: Optional[bool] = Form(False),  # Include base64 encoded audio in JSON response
+        sample_rate: Optional[int] = Form(24000),  # Specify the sample rate for the audio
+        channels: Optional[int] = Form(1)  # Specify the number of channels for the audio
 ):
     log("analyze", f"Received file {file.filename}")
     try:
@@ -151,7 +153,7 @@ async def process_audio(
 
         # Iterate over the data and calculate the sample offset based on the time and the sample rate of 24000 single channel
         for d in data:
-            d["offset"] = int(d["time"] * 24000 / 1000)
+            d["offset"] = int(d["time"] * sample_rate / 1000 * channels)
 
         log("analyze", "Sorting data...")
         # sort the data by start time
@@ -165,7 +167,7 @@ async def process_audio(
             # Return JSON response with data
             response_data = {"data": data}
             if include_base64:
-                data = encode_json_and_file(data, audio_path, output_format=output_format)
+                data = encode_json_and_file(data, audio_path, output_format=output_format, sample_rate=sample_rate, channels=channels)
                 base64data = base64.b64encode(data).decode("utf-8")
                 response_data["data_encoded_audio"] = base64data
             os.remove(audio_path)
