@@ -28,10 +28,14 @@ def encode_json_and_file(json_data, audio_path, output_format="pcm"):
     # Read and convert the audio file content based on the requested format
     audio = AudioSegment.from_file(audio_path)
     if output_format == "wav":
+        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
         file_bytes = audio.export(format="wav").read()
     elif output_format == "mp3":
+        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
         file_bytes = audio.export(format="mp3").read()
     else:  # default to pcm
+        # reencode the audio to PCM with 16k sample rate, 16-bit sample width, and mono channel
+        audio = audio.set_frame_rate(24000).set_sample_width(2).set_channels(1)
         file_bytes = audio.raw_data
 
     binary_length = len(file_bytes)
