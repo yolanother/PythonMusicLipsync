@@ -65,7 +65,7 @@ def convert_to_ms(timestamp):
     # if timestamp is a string convert to float
     if isinstance(timestamp, str):
         timestamp = float(timestamp)
-    return int(timestamp * 1000)
+    return int(timestamp * 100)
 
 @app.post("/analyze/")
 async def process_audio(
@@ -155,17 +155,40 @@ async def process_audio(
                 "time": convert_to_ms(visemes["transcription"][i]["start_time"]),
                 "type": "PHONE"
             })
-            data.append({
+            start_time = convert_to_ms(visemes["transcription"][i]["start_time"])
+            end_time = convert_to_ms(visemes["transcription"][i]["end_time"])
+            viseme = {
                 "data": visemes["transcription"][i]["viseme"],
-                "time": convert_to_ms(visemes["transcription"][i]["start_time"]),
+                "time": start_time,
+                "length": end_time - start_time,
                 "type": "VISEME"
-            })
+            }
+            data.append(viseme)
+            visemes.append(viseme)
+
+        # iterate over data for VISEMEs if there is more than 500ms between visemes add a sil viseme
+        for i in range(len(visemes) - 1):
+            delta = visemes[i + 1]["time"] - visemes[i]["time"]
+            if delta > visemes[i]["length"]:
+                data.append({
+                    "data": "sil",
+                    "time": visemes[i]["time"] + visemes[i]["length"],
+                    "type": "VISEME"
+                })
+
+        # add a sil after the last viseme
+        data.append({
+            "data": "sil",
+            "time": visemes[-1]["time"] + visemes[-1]["length"],
+            "type": "VISEME"
+        })
 
         if len(words) > 2:
             # iterate over the words, if there is more than 5 sec between them put a instrumental emote right after the last word
             # of the break put a vocal emote right before the next word
             for i in range(len(words) - 1):
-                if words[i + 1]["time"] - words[i]["time"] > 5000:
+                delta = words[i + 1]["time"] - words[i]["time"]
+                if delta > 5000:
                     data.append({
                         "data": "instrumental",
                         "time": words[i]["time"],
@@ -181,6 +204,12 @@ async def process_audio(
                 data.insert(0, {
                     "data": "instrumental",
                     "time": 0,
+                    "type": "EMOTE"
+                })
+                # insert a vocal at the time of the first word
+                data.insert(1, {
+                    "data": "vocal",
+                    "time": words[0]["time"],
                     "type": "EMOTE"
                 })
             else:

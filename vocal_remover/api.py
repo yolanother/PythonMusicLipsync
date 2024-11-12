@@ -131,12 +131,12 @@ async def extract_vocals(uploaded_file: UploadFile = File(...), download: bool =
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        #if tmp_path and os.path.exists(tmp_path):
+        #    os.unlink(tmp_path)
         # Clean up any generated output
         output_folder = Path("./output_vocals/") / Path(tmp_path).stem
-        if output_folder.exists():
-            shutil.rmtree(output_folder)
+        #if output_folder.exists():
+        #    shutil.rmtree(output_folder)
 
 
 # Endpoint to handle uploading an audio file, extracting all tracks, and creating a zip file
