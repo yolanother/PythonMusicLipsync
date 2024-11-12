@@ -66,7 +66,7 @@ def convert_to_ms(timestamp):
     # if timestamp is a string convert to float
     if isinstance(timestamp, str):
         timestamp = float(timestamp)
-    return int(timestamp * 100)
+    return int(timestamp * 1000)
 
 @app.post("/analyze/")
 async def process_audio(
@@ -177,6 +177,11 @@ async def process_audio(
                     "time": viseme_list[i]["time"] + viseme_list[i]["length"],
                     "type": "VISEME"
                 })
+                data.append({
+                    "data": "sil",
+                    "time": viseme_list[i + 1]["time"] - 10,
+                    "type": "VISEME"
+                })
 
         # add a sil after the last viseme
         data.append({
@@ -217,7 +222,7 @@ async def process_audio(
             else:
                 data.insert(0, {
                     "data": "vocal",
-                    "time": 0,
+                    "time": words[0]["time"],
                     "type": "EMOTE"
                 })
 
