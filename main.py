@@ -1,5 +1,6 @@
 import base64
 import sys
+import traceback
 
 from app import app, encode_json_and_file, log
 import tempfile
@@ -104,11 +105,12 @@ async def process_audio(
         beats = await analyze_beat(audio_path)
 
         # delete all files in the vocals
-        for vocal in vocals:
-            os.remove(vocal)
+        #for vocal in vocals:
+        #    os.remove(vocal)
 
         data = []
         words = []
+        viseme_list = []
 
         log("analyze", "Combining data...")
         # append beats if we have them
@@ -164,22 +166,22 @@ async def process_audio(
                 "type": "VISEME"
             }
             data.append(viseme)
-            visemes.append(viseme)
+            viseme_list.append(viseme)
 
         # iterate over data for VISEMEs if there is more than 500ms between visemes add a sil viseme
-        for i in range(len(visemes) - 1):
-            delta = visemes[i + 1]["time"] - visemes[i]["time"]
-            if delta > visemes[i]["length"]:
+        for i in range(len(viseme_list) - 1):
+            delta = viseme_list[i + 1]["time"] - (viseme_list[i]["time"] + viseme_list[i]["length"])
+            if delta > 100:
                 data.append({
                     "data": "sil",
-                    "time": visemes[i]["time"] + visemes[i]["length"],
+                    "time": viseme_list[i]["time"] + viseme_list[i]["length"],
                     "type": "VISEME"
                 })
 
         # add a sil after the last viseme
         data.append({
             "data": "sil",
-            "time": visemes[-1]["time"] + visemes[-1]["length"],
+            "time": viseme_list[-1]["time"] + viseme_list[-1]["length"],
             "type": "VISEME"
         })
 
@@ -255,6 +257,7 @@ async def process_audio(
             media_type = "audio/wav" if output_format == "wav" else "audio/mpeg" if output_format == "mp3" else "application/octet-stream"
             return StreamingResponse(BytesIO(encoded), media_type=media_type)
     except Exception as e:
+        traceback.print_exc()
         log("analyze", f"Error processing audio: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
