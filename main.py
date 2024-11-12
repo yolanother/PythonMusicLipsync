@@ -81,7 +81,10 @@ async def process_audio(
     try:
         # get a name for the file based on the md5 of the file
         name = hashlib.md5(file.filename.encode()).hexdigest()
-        audio_path = f'./uploads/{name}'
+        uploads_dir = 'uploads'
+        os.makedirs(uploads_dir, exist_ok=True)
+        os.makedirs('output_vocals', exist_ok=True)
+        audio_path = f'uploads/{name}'
         # write the file to disk
         with open(audio_path, 'wb') as f:
             # Read the uploaded file and convert it to WAV if necessary
