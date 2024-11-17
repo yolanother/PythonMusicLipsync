@@ -242,9 +242,6 @@ async def process_audio(
         # sort the data by start time
         data.sort(key=lambda x: x["offset"])
 
-        # print the data with pretty json
-        log("analyze", json.dumps(data, indent=2))
-
         # Check request type
         if request.headers.get("accept") == "application/json":
             # Return JSON response with data
